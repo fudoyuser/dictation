@@ -374,7 +374,7 @@ function renderItem(){
       ${synth ? "" : '<div class="warnbox">Trình duyệt này không hỗ trợ đọc giọng nói. Hãy mở bằng Chrome, Edge hoặc Safari.</div>'}
       <div class="player">
         <button class="play" id="playBtn" type="button" aria-label="Nghe câu">${PLAY_SVG}</button>
-        <div class="pmeta"><strong>Câu ${S.idx+1} / ${S.items.length}</strong><span id="plays">Bấm loa để nghe. 3 lần nghe đầu miễn phí.</span></div>
+        <div class="pmeta"><strong>Câu ${S.idx+1} / ${S.items.length}</strong><span id="plays">Mỗi câu được nghe miễn phí 3 lần (bấm loa hoặc phím Ctrl).</span></div>
         <div class="ctrls">
           <button class="btn" id="slowBtn" type="button">Nghe chậm</button>
         </div>
@@ -403,7 +403,8 @@ function play(slow){
   speak(S.items[S.idx].speak, slow);
   const extra = Math.max(0, S.plays - 3);
   $("#plays").textContent = slow ? "Đang nghe chậm (không tính lượt)." :
-    `Đã nghe ${S.plays} lần` + (extra ? ` · trừ ${extra*5} điểm` : S.plays < 3 ? ` · còn ${3-S.plays} lần miễn phí` : " · lần sau bị trừ 5 điểm");
+    extra ? `Đã nghe ${S.plays} lần · vượt 3 lần miễn phí, đang bị trừ ${extra*5} điểm`
+          : `Lượt nghe miễn phí: đã dùng ${S.plays}/3` + (S.plays < 3 ? "" : " · nghe thêm sẽ bị trừ 5 điểm/lần");
   $("#ans").focus({preventScroll:true});
 }
 function showHint(){
