@@ -140,7 +140,7 @@ select{font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px soli
   </header>
 
   <section class="board" aria-label="Bảng điểm">
-    <div class="stat score"><small>Điểm vòng này</small><b id="sScore">0</b></div>
+    <div class="stat score"><small>Điểm bài này</small><b id="sScore">0/10</b></div>
     <div class="stat"><small>Chuỗi đúng 100%</small><b id="sStreak">0</b></div>
     <div class="stat"><small>Độ chính xác</small><b id="sAcc">–</b></div>
     <div class="stat"><small>Ngày luyện liên tiếp</small><b id="sDays">0</b></div>
@@ -157,11 +157,12 @@ select{font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px soli
       <div class="card">
         <h2>Cách tính điểm</h2>
         <ul class="rules">
-          <li>Mỗi câu tối đa <b>100 điểm</b>, theo % từ (hoặc chữ số) đúng.</li>
+          <li>Mỗi bài <b>10 điểm</b>, mỗi câu tối đa <b>1 điểm</b>.</li>
+          <li>Điểm câu tính theo tỉ lệ từ (hoặc chữ số) đúng. Ví dụ đúng 8/10 từ được 0.8 điểm.</li>
           <li>Gõ thừa từ: mỗi từ thừa trừ nửa từ đúng.</li>
-          <li>Đúng 100% không gợi ý: <b>+10 thưởng</b>, chuỗi càng dài thưởng càng cao (tối đa +35).</li>
-          <li>Gợi ý: <b>−30</b>. Nghe quá 3 lần: <b>−5</b> mỗi lần.</li>
-          <li>Nghe chậm không bị trừ.</li>
+          <li>Dùng gợi ý: <b>−0.3 điểm</b>.</li>
+          <li>Nghe quá 3 lần: <b>−0.5 điểm</b> mỗi lần thêm. Nghe chậm không bị trừ.</li>
+          <li>Mỗi câu thấp nhất 0 điểm, không bị âm.</li>
         </ul>
       </div>
       <div class="card">
@@ -350,7 +351,7 @@ let topic = TOPICS.find(t => t.id === store.get("nc_topic","phone")) || TOPICS[0
 let lesson = null, S = null;
 const lessonKey = (t, l) => t.id + "/" + l.id;
 function bestFor(t, l){
-  return store.get("nc_hist", []).filter(h => h.lesson === lessonKey(t,l))
+  return loadHist().filter(h => h.lesson === lessonKey(t,l))
     .reduce((b,h) => !b || h.score > b.score ? h : b, null);
 }
 function showLessons(){
@@ -365,7 +366,7 @@ function showLessons(){
       return `<button class="lesson" type="button" data-id="${esc(l.id)}">
         <span class="lnum">${i+1}</span>
         <span class="lbody"><strong>${esc(l.name)}</strong><small>${esc(l.desc || "")}</small></span>
-        <span class="lbest">${b ? `<span class="grade">${b.grade}</span><small>${b.score} điểm</small>` : '<small>Chưa chơi</small>'}</span>
+        <span class="lbest">${b ? `<span class="grade">${b.grade}</span><small>${fmt(b.score)}/10</small>` : '<small>Chưa chơi</small>'}</span>
       </button>`; }).join("")}</div>`;
   resetBoard();
 }
@@ -386,10 +387,10 @@ $("#stage").addEventListener("click", e => {
   if(e.target.closest(".back")) showLessons();
 });
 function resetBoard(){
-  $("#sScore").textContent = 0; $("#sStreak").textContent = 0; $("#sAcc").textContent = "–"; $("#sDays").textContent = dayStreak();
+  $("#sScore").textContent = "0/10"; $("#sStreak").textContent = 0; $("#sAcc").textContent = "–"; $("#sDays").textContent = dayStreak();
 }
 function renderBoard(bump){
-  $("#sScore").textContent = S.score;
+  $("#sScore").textContent = fmt(S.score) + "/10";
   $("#sStreak").textContent = S.streak;
   $("#sAcc").textContent = S.done ? Math.round(S.accSum / S.done * 100) + "%" : "–";
   $("#sDays").textContent = dayStreak();
@@ -418,7 +419,7 @@ function renderItem(){
       <div class="row">
         <div class="ctrls">
           <button class="btn primary" id="checkBtn" type="button">Chấm điểm</button>
-          <button class="btn" id="hintBtn" type="button">Gợi ý (−30)</button>
+          <button class="btn" id="hintBtn" type="button">Gợi ý (−0.3)</button>
         </div>
         <button class="btn ghost" id="skipBtn" type="button">Bỏ qua (0 điểm)</button>
       </div>
@@ -437,8 +438,8 @@ function play(slow){
   speak(S.items[S.idx].speak, slow);
   const extra = Math.max(0, S.plays - 3);
   $("#plays").textContent = slow ? "Đang nghe chậm (không tính lượt)." :
-    extra ? `Đã nghe ${S.plays} lần · vượt 3 lần miễn phí, đang bị trừ ${extra*5} điểm`
-          : `Lượt nghe miễn phí: đã dùng ${S.plays}/3` + (S.plays < 3 ? "" : " · nghe thêm sẽ bị trừ 5 điểm/lần");
+    extra ? `Đã nghe ${S.plays} lần · vượt 3 lần miễn phí, đang bị trừ ${fmt(extra*0.5)} điểm`
+          : `Lượt nghe miễn phí: đã dùng ${S.plays}/3` + (S.plays < 3 ? "" : " · nghe thêm sẽ bị trừ 0.5 điểm/lần");
   $("#ans").focus({preventScroll:true});
 }
 function showHint(){
@@ -459,26 +460,23 @@ function check(skipped){
   if(!skipped && !typed.trim()){ $("#ans").focus(); return; }
   S.checked = true;
   const g = grade(it, skipped ? "" : typed);
-  const base = Math.round(g.acc * 100);
-  const hintPen = S.hint ? 30 : 0, playPen = Math.max(0, S.plays - 3) * 5;
-  let pts = Math.max(0, base - hintPen - playPen), bonus = 0;
+  const hintPen = S.hint ? 0.3 : 0, playPen = Math.max(0, S.plays - 3) * 0.5;
+  const pts = r2(Math.max(0, g.acc - hintPen - playPen));
   const perfect = g.acc === 1 && !S.hint;
-  if(perfect){ S.streak++; S.bestStreak = Math.max(S.bestStreak, S.streak); bonus = 10 + Math.min(S.streak-1, 5) * 5; }
+  if(perfect){ S.streak++; S.bestStreak = Math.max(S.bestStreak, S.streak); }
   else S.streak = 0;
-  pts += bonus;
-  S.score += pts; S.accSum += g.acc; S.done++;
+  S.score = r2(S.score + pts); S.accSum += g.acc; S.done++;
   S.results.push({ it, typed, acc:g.acc, pts });
 
   const why = [`${g.matches}/${g.total} ${it.mode==="digits"?"chữ số":"từ"} đúng`];
-  if(hintPen) why.push("gợi ý −30");
-  if(playPen) why.push(`nghe thêm −${playPen}`);
-  if(bonus) why.push(`thưởng chuỗi +${bonus}`);
+  if(hintPen) why.push("gợi ý −0.3");
+  if(playPen) why.push(`nghe thêm −${fmt(playPen)}`);
   const cls = g.acc === 1 ? "ok" : g.acc >= .7 ? "mid" : "low";
-  const title = skipped ? "Đã bỏ qua" : g.acc === 1 ? (S.streak > 1 ? `Hoàn hảo! Chuỗi ${S.streak}` : "Hoàn hảo!") : g.acc >= .7 ? "Gần đúng rồi" : "Cần nghe kỹ hơn";
+  const title = skipped ? "Đã bỏ qua" : g.acc === 1 ? (pts < 1 ? "Đúng hết, nhưng bị trừ điểm" : S.streak > 1 ? `Hoàn hảo! Chuỗi ${S.streak}` : "Hoàn hảo!") : g.acc >= .7 ? "Gần đúng rồi" : "Cần nghe kỹ hơn";
 
   $("#resBox").innerHTML = `
     <div class="result ${cls}" role="status">
-      <div class="head"><span class="pts">+${pts}</span><strong>${title}</strong><span class="why">${why.join(" · ")}</span></div>
+      <div class="head"><span class="pts">+${fmt(pts)}</span><strong>${title}</strong><span class="why">${why.join(" · ")}</span></div>
       ${skipped ? "" : `<div class="diff ${it.mode==="digits"?"mono":""}">${renderDiff(it, g)}</div>`}
       <div class="answer">Đáp án: <b>${esc(it.answer)}</b></div>
       ${skipped || g.acc===1 ? "" : '<div class="legend"><span><span class="w m">đúng</span></span><span><span class="w x">sai</span> <span class="w c">sửa</span></span><span><span class="w miss">thiếu</span></span></div>'}
@@ -511,10 +509,15 @@ function next(){
 }
 
 /* ---------- round end, history ---------- */
+const r2 = n => Math.round(n * 100) / 100;
+const fmt = n => String(r2(n));
+function loadHist(){ // older rounds used a 100-points-per-sentence scale; convert to /10
+  return store.get("nc_hist", []).map(h => h.v === 2 ? h : Object.assign({}, h, { v: 2, score: r2((h.acc || 0) * 10), grade: letter(h.acc || 0) }));
+}
 function letter(acc){ return acc >= .95 ? "S" : acc >= .85 ? "A" : acc >= .7 ? "B" : acc >= .5 ? "C" : "D"; }
 function todayKey(d){ d = d || new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
 function dayStreak(){
-  const days = new Set(store.get("nc_hist", []).map(h => h.day));
+  const days = new Set(loadHist().map(h => h.day));
   let n = 0; const d = new Date();
   if(!days.has(todayKey(d))) d.setDate(d.getDate()-1);
   while(days.has(todayKey(d))){ n++; d.setDate(d.getDate()-1); }
@@ -522,11 +525,11 @@ function dayStreak(){
 }
 function finish(){
   if(synth) synth.cancel();
-  const acc = S.accSum / S.items.length, L = letter(acc);
-  const hist = store.get("nc_hist", []);
+  const acc = S.accSum / S.items.length, L = letter(S.score / 10);
+  const hist = loadHist();
   const key = lessonKey(topic, lesson);
   const prevBest = hist.filter(h => h.lesson === key).reduce((m,h) => Math.max(m, h.score), 0);
-  hist.unshift({ lesson: key, topic: topic.name, name: lesson.name, score: S.score, acc, grade: L, day: todayKey(), at: Date.now() });
+  hist.unshift({ v: 2, lesson: key, topic: topic.name, name: lesson.name, score: S.score, acc, grade: L, day: todayKey(), at: Date.now() });
   store.set("nc_hist", hist.slice(0, 60));
   renderBoard(); renderLog();
   const record = S.score > prevBest;
@@ -537,8 +540,8 @@ function finish(){
       <span class="crumb">${esc(topic.name)} · ${esc(lesson.name)}</span>
       <div class="big">
         <div class="biggrade">${L}</div>
-        <div><h2>${S.score} điểm · ${Math.round(acc*100)}% chính xác</h2>
-          <p>${record ? (prevBest ? `Kỷ lục mới cho bài này! Trước đó: ${prevBest}.` : `Kỷ lục đầu tiên cho bài này.`) : `Kỷ lục của bài: ${prevBest} điểm.`} Chuỗi dài nhất: ${S.bestStreak}.</p></div>
+        <div><h2>${fmt(S.score)}/10 điểm · ${Math.round(acc*100)}% chính xác</h2>
+          <p>${record ? (prevBest ? `Kỷ lục mới cho bài này! Trước đó: ${fmt(prevBest)}/10.` : `Kỷ lục đầu tiên cho bài này.`) : `Kỷ lục của bài: ${fmt(prevBest)}/10.`} Chuỗi dài nhất: ${S.bestStreak}.</p></div>
       </div>
       <p>${msg}</p>
       ${misses.length ? `<div class="misses">${misses.map(r => `<div><b>${esc(r.it.answer)}</b><span>Bạn gõ: ${esc(r.typed || "(bỏ qua)")} · ${Math.round(r.acc*100)}%</span></div>`).join("")}</div>` : '<p>Không sai câu nào.</p>'}
@@ -549,12 +552,12 @@ function finish(){
   $("#replay").focus({preventScroll:true});
 }
 function renderLog(){
-  const hist = store.get("nc_hist", []);
+  const hist = loadHist();
   const total = hist.reduce((s,h) => s + h.score, 0);
-  $("#best").textContent = hist.length ? `Tổng điểm tích lũy: ${total.toLocaleString("vi-VN")} · ${hist.length} vòng` : "Chưa có vòng nào. Hoàn thành 10 câu để lưu điểm ở đây.";
+  $("#best").textContent = hist.length ? `Tổng điểm tích lũy: ${fmt(total)} · ${hist.length} bài đã làm` : "Chưa có vòng nào. Hoàn thành 10 câu để lưu điểm ở đây.";
   $("#log").innerHTML = hist.slice(0, 8).map(h => {
     const d = new Date(h.at);
-    return `<li><span class="grade">${h.grade}</span><span class="t">${esc(h.name)}<small>${esc(h.topic || "")} · ${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})} · ${Math.round(h.acc*100)}%</small></span><span class="s">${h.score}</span></li>`;
+    return `<li><span class="grade">${h.grade}</span><span class="t">${esc(h.name)}<small>${esc(h.topic || "")} · ${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})} · ${Math.round(h.acc*100)}%</small></span><span class="s">${fmt(h.score)}</span></li>`;
   }).join("");
 }
 
