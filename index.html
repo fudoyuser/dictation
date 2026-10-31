@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nghe &amp; Chép</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: scoreboard strip on top, dictation desk on the left, round log on the right; stacks on phones */
+:root{
+  --bg:#eef1f7; --panel:#ffffff; --ink:#141a33; --muted:#5b6385; --line:#d5dbea;
+  --accent:#2a44d4; --accent-soft:#e3e8ff; --accent-ink:#ffffff;
+  --good:#127a4a; --good-soft:#dcf3e7; --bad:#c2273a; --bad-soft:#fde3e6; --warn:#a86200; --warn-soft:#fff0d6;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1222; --panel:#171c31; --ink:#e7eaf7; --muted:#9aa2c4; --line:#2a3152;
+  --accent:#7d92ff; --accent-soft:#232c57; --accent-ink:#0e1222;
+  --good:#5fd39a; --good-soft:#163a2a; --bad:#ff7d8c; --bad-soft:#40192142; --warn:#ffbe5c; --warn-soft:#3a2a10;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1222; --panel:#171c31; --ink:#e7eaf7; --muted:#9aa2c4; --line:#2a3152;
+  --accent:#7d92ff; --accent-soft:#232c57; --accent-ink:#0e1222;
+  --good:#5fd39a; --good-soft:#163a2a; --bad:#ff7d8c; --bad-soft:#40192142; --warn:#ffbe5c; --warn-soft:#3a2a10;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,4vw,38px);line-height:1;margin:0;letter-spacing:-.02em}
+h1 span{color:var(--accent)}
+.tag{color:var(--muted);margin:6px 0 0;font-size:15px}
+.board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat b{font-family:var(--f-mono);font-size:26px;font-variant-numeric:tabular-nums;line-height:1.1}
+.stat small{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.07em}
+.stat.score b{color:var(--accent)}
+.bump{animation:bump .45s ease}
+@keyframes bump{40%{transform:scale(1.18)}}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
+.desk{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:20px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.topics{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:14px;border:1px solid var(--line);background:transparent;color:var(--ink);padding:6px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.chip:hover{border-color:var(--accent)}
+button:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.progress{height:6px;background:var(--line);border-radius:6px;overflow:hidden}
+.progress i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s}
+.player{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.play{width:64px;height:64px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer;display:grid;place-items:center;flex:none}
+.play svg{width:26px;height:26px}
+.play.on{box-shadow:0 0 0 6px var(--accent-soft)}
+.pmeta{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.pmeta strong{font-family:var(--f-display);font-size:20px}
+.pmeta span{color:var(--muted);font-size:14px}
+.ctrls{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-size:15px;font-weight:700;border-radius:10px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.ghost{border-color:transparent;color:var(--muted);font-weight:400}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+textarea{width:100%;min-height:96px;resize:vertical;font:inherit;font-size:19px;line-height:1.5;padding:14px 16px;border:2px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink)}
+textarea:focus{border-color:var(--accent);outline:none}
+textarea.mono{font-family:var(--f-mono);letter-spacing:.04em}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.keys{color:var(--muted);font-size:13px}
+kbd{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;background:var(--bg)}
+.hint{font-family:var(--f-mono);background:var(--warn-soft);color:var(--warn);padding:10px 14px;border-radius:10px;font-size:16px;word-break:break-word}
+.result{border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;border:1px solid var(--line)}
+.result .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+.result .pts{font-family:var(--f-display);font-weight:800;font-size:30px}
+.result.ok .pts{color:var(--good)} .result.mid .pts{color:var(--warn)} .result.low .pts{color:var(--bad)}
+.result .why{color:var(--muted);font-size:14px}
+.diff{font-size:19px;line-height:2;word-break:break-word}
+.diff.mono{font-family:var(--f-mono)}
+.w{padding:2px 4px;border-radius:5px;margin-right:2px}
+.w.m{color:var(--good)}
+.w.x{background:var(--bad-soft);color:var(--bad);text-decoration:line-through}
+.w.c{background:var(--good-soft);color:var(--good);font-weight:700}
+.w.miss{border-bottom:2px dashed var(--bad);color:var(--bad);font-weight:700}
+.answer{font-size:15px;color:var(--muted)} .answer b{color:var(--ink);font-weight:700}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}
+.side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px}
+.card h2{font-family:var(--f-display);font-size:17px;margin:0}
+.rules{margin:0;padding-left:18px;font-size:14px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+.rules b{color:var(--ink)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.log li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.log li:last-child{border-bottom:0}
+.grade{font-family:var(--f-display);font-weight:800;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.log .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log .t small{display:block;color:var(--muted);font-size:12px}
+.log .s{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);font-size:14px;margin:0}
+.settings{display:flex;flex-direction:column;gap:8px;font-size:14px}
+.settings label{display:flex;flex-direction:column;gap:4px;color:var(--muted)}
+select{font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+.summary{display:flex;flex-direction:column;gap:16px;align-items:flex-start}
+.big{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.biggrade{font-family:var(--f-display);font-weight:800;font-size:72px;line-height:1;color:var(--accent)}
+.summary h2{font-family:var(--f-display);margin:0;font-size:26px;text-wrap:balance}
+.summary p{margin:0;color:var(--muted)}
+.misses{width:100%;display:flex;flex-direction:column;gap:6px;font-size:15px}
+.misses div{padding:8px 12px;border-radius:8px;background:var(--bg)}
+.misses span{color:var(--muted);font-size:13px;display:block}
+.warnbox{background:var(--warn-soft);color:var(--warn);padding:12px;border-radius:10px;font-size:14px}
+@media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}.board{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Nghe <span>&amp;</span> Chép</h1>
+      <p class="tag">Nghe tiếng Anh, gõ lại, nhận điểm ngay. Mỗi vòng 10 câu.</p>
+    </div>
+    <div class="keys"><kbd>Ctrl</kbd> nghe lại · <kbd>Enter</kbd> chấm / câu tiếp</div>
+  </header>
+
+  <section class="board" aria-label="Bảng điểm">
+    <div class="stat score"><small>Điểm vòng này</small><b id="sScore">0</b></div>
+    <div class="stat"><small>Chuỗi đúng 100%</small><b id="sStreak">0</b></div>
+    <div class="stat"><small>Độ chính xác</small><b id="sAcc">–</b></div>
+    <div class="stat"><small>Ngày luyện liên tiếp</small><b id="sDays">0</b></div>
+  </section>
+
+  <div class="grid">
+    <main class="desk" id="desk">
+      <div class="topics" id="topics" role="group" aria-label="Chủ đề"></div>
+      <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+      <div id="stage"></div>
+    </main>
+
+    <aside class="side">
+      <div class="card">
+        <h2>Cách tính điểm</h2>
+        <ul class="rules">
+          <li>Mỗi câu tối đa <b>100 điểm</b>, theo % từ (hoặc chữ số) đúng.</li>
+          <li>Gõ thừa từ: mỗi từ thừa trừ nửa từ đúng.</li>
+          <li>Đúng 100% không gợi ý: <b>+10 thưởng</b>, chuỗi càng dài thưởng càng cao (tối đa +35).</li>
+          <li>Gợi ý: <b>−30</b>. Nghe quá 3 lần: <b>−5</b> mỗi lần.</li>
+          <li>Nghe chậm không bị trừ.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Lịch sử vòng chơi</h2>
+        <div id="best" class="empty"></div>
+        <ul class="log" id="log"></ul>
+      </div>
+      <div class="card settings">
+        <h2>Giọng đọc</h2>
+        <label for="voice">Giọng<select id="voice"></select></label>
+        <label for="rate">Tốc độ thường<select id="rate">
+          <option value="0.85">Chậm vừa (0.85×)</option>
+          <option value="1" selected>Bình thường (1×)</option>
+          <option value="1.15">Nhanh (1.15×)</option>
+        </select></label>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $ = s => document.querySelector(s);
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const rint = (a,b) => a + Math.floor(Math.random()*(b-a+1));
+const shuffle = a => { a = a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------- number words ---------- */
+const ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(" ");
+const TENS = ["","","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+function words(n){
+  if(n < 20) return ONES[n];
+  if(n < 100) return TENS[Math.floor(n/10)] + (n%10 ? "-" + ONES[n%10] : "");
+  if(n < 1000) return ONES[Math.floor(n/100)] + " hundred" + (n%100 ? " and " + words(n%100) : "");
+  if(n < 1e6) return words(Math.floor(n/1000)) + " thousand" + (n%1000 ? (n%1000 < 100 ? " and " : " ") + words(n%1000) : "");
+  return words(Math.floor(n/1e6)) + " million" + (n%1e6 ? " " + words(n%1e6) : "");
+}
+function yearWords(y){
+  if(y >= 2000 && y < 2010) return words(y);
+  const a = Math.floor(y/100), b = y%100;
+  return words(a) + " " + (b === 0 ? "hundred" : b < 10 ? "oh " + ONES[b] : words(b));
+}
+
+/* ---------- topics ---------- */
+function phoneItem(){
+  const fmt = pick([[4,3,3],[3,3,4],[2,4,4]]);
+  const groups = fmt.map((len,gi) => { let s=""; for(let i=0;i<len;i++) s += (gi===0 && i===0) ? "0" : rint(0,9); return s; });
+  const spoken = groups.map(g => {
+    const out = []; const d = g.split("");
+    for(let i=0;i<d.length;i++){
+      if(i < d.length-1 && d[i] === d[i+1] && Math.random() < .7){ out.push("double " + (d[i]==="0" ? "oh" : ONES[+d[i]])); i++; }
+      else out.push(d[i]==="0" ? (Math.random()<.6 ? "oh" : "zero") : ONES[+d[i]]);
+    }
+    return out.join(" ");
+  }).join(", ");
+  const intro = pick(["", "My number is ", "You can reach me on ", "Call me on ", "It's "]);
+  return { answer: groups.join(" "), speak: intro + spoken + ".", mode: "digits", label: "Số điện thoại" };
+}
+function priceItem(){
+  const cur = pick([["$","dollar","dollars","cent","cents"],["£","pound","pounds","penny","pence"],["€","euro","euros","cent","cents"]]);
+  const whole = pick([rint(1,20), rint(10,99), rint(100,999), rint(1000,4999)]);
+  const cents = pick([0, 0, 99, 50, 25, rint(1,98)]);
+  let spoken = words(whole) + " " + (whole===1 ? cur[1] : cur[2]);
+  if(cents) spoken = Math.random()<.5 ? spoken + " and " + words(cents) + " " + (cents===1 ? cur[3] : cur[4])
+                                       : words(whole) + " " + words(cents);
+  const ans = cur[0] + whole.toLocaleString("en-US") + (cents ? "." + String(cents).padStart(2,"0") : "");
+  const intro = pick(["That's ", "It costs ", "The total is ", "", "It comes to "]);
+  return { answer: ans, speak: intro + spoken + ".", mode: "digits", label: "Giá tiền" };
+}
+function timeItem(){
+  const h = rint(1,12);
+  const m = pick([0,5,10,15,20,25,30,35,40,45,50,55, rint(1,59)]);
+  const nextH = h === 12 ? 1 : h + 1;
+  let spoken;
+  const r = Math.random();
+  if(m === 0) spoken = words(h) + " o'clock";
+  else if(r < .5 && m === 15) spoken = "a quarter past " + words(h);
+  else if(r < .5 && m === 30) spoken = "half past " + words(h);
+  else if(r < .5 && m === 45) spoken = "a quarter to " + words(nextH);
+  else if(r < .5 && m % 5 === 0 && m < 30) spoken = words(m) + " past " + words(h);
+  else if(r < .5 && m % 5 === 0 && m > 30) spoken = words(60-m) + " to " + words(nextH);
+  else spoken = words(h) + " " + (m < 10 ? "oh " + ONES[m] : words(m));
+  const intro = pick(["The train leaves at ", "Let's meet at ", "The meeting starts at ", "It's ", "The shop opens at "]);
+  return { answer: h + ":" + String(m).padStart(2,"0"), speak: intro + spoken + ".", mode: "digits", label: "Giờ giấc" };
+}
+function bigItem(){
+  if(Math.random() < .45){
+    const y = rint(1900, 2030);
+    return { answer: String(y), speak: pick(["She was born in ","It happened in ","The company started in ","They moved here in "]) + yearWords(y) + ".", mode: "digits", label: "Năm & số lớn" };
+  }
+  const n = pick([rint(13,99), rint(100,999), rint(1000,9999), rint(10000,99999), rint(100000,999999)]);
+  return { answer: n.toLocaleString("en-US"), speak: pick(["There are ","We sold ","About ","The population is ","They recorded "]) + words(n) + ".", mode: "digits", label: "Năm & số lớn" };
+}
+
+const SENT = {
+  daily: ["I usually get up at seven and have breakfast with my family.","Could you turn the music down a little, please?","We're going to the supermarket after work.","She has been learning English for three years.","My brother doesn't like coffee, but he drinks a lot of tea.","What time does the film start tonight?","I left my keys on the kitchen table.","It's been raining all morning, so take an umbrella.","Let's order a pizza and watch something at home.","He walks his dog in the park every evening.","I can't find my phone anywhere.","Do you want to come to my birthday party on Saturday?","The weather is much warmer than it was yesterday.","I need to buy some milk, eggs, and bread.","We spent the whole weekend cleaning the house.","My sister is a nurse at the city hospital.","Have you ever tried Vietnamese food?","I'm sorry I'm late, the traffic was terrible.","Could you help me carry these bags upstairs?","They have lived in this neighbourhood since 2015."],
+  travel: ["Excuse me, how do I get to the train station?","Go straight ahead and turn left at the traffic lights.","I'd like to book a room for two nights, please.","Is breakfast included in the price?","Our flight has been delayed by two hours.","Can I have a window seat, please?","The museum is closed on Mondays.","How much is a return ticket to London?","Please keep your passport with you at all times.","The bus stop is just across the road from the bank.","We need to check out before eleven o'clock.","Could you recommend a good local restaurant?","I'm afraid I've lost my luggage.","Take the second exit at the roundabout.","Is there a pharmacy near here?","The hotel is about ten minutes on foot from the beach.","Boarding will begin at gate number twelve.","Do you accept credit cards?","Could you call a taxi for me, please?","We're planning a road trip along the coast next summer."],
+  work: ["Can we move the meeting to Thursday afternoon?","I'll send you the report by the end of the day.","Please let me know if you have any questions.","Our team is working on a new marketing campaign.","The deadline for this project is next Friday.","Could you share your screen so everyone can see?","I'm calling to follow up on yesterday's email.","We need to reduce costs without affecting quality.","She was promoted to sales manager last month.","Let's schedule a quick call to discuss the details.","The client has asked for a few changes to the design.","I'm afraid I won't be able to attend the conference.","Please sign the contract and send it back to us.","Our office is on the fifth floor of the building.","Sales have increased by twenty percent this year.","Could you introduce yourself to the rest of the team?","I think we should look at the problem from a different angle.","The printer on this floor isn't working again.","We're hiring two new developers this quarter.","Thank you all for your hard work on this launch."]
+};
+function sentItem(key, label){ return () => { const s = pick(SENT[key]); return { answer: s, speak: s, mode: "words", label }; }; }
+
+const TOPICS = [
+  { id:"phone", name:"Số điện thoại", gen: phoneItem },
+  { id:"price", name:"Giá tiền", gen: priceItem },
+  { id:"time", name:"Giờ giấc", gen: timeItem },
+  { id:"big", name:"Năm & số lớn", gen: bigItem },
+  { id:"daily", name:"Đời sống", sentences:"daily" },
+  { id:"travel", name:"Du lịch", sentences:"travel" },
+  { id:"work", name:"Công sở", sentences:"work" },
+];
+function buildRound(t){
+  if(t.sentences) return shuffle(SENT[t.sentences]).slice(0,10).map(s => ({ answer:s, speak:s, mode:"words", label:t.name }));
+  const out = [], seen = new Set();
+  while(out.length < 10){ const it = t.gen(); if(!seen.has(it.answer)){ seen.add(it.answer); out.push(it); } }
+  return out;
+}
+
+/* ---------- normalising & comparing ---------- */
+const NUMW = {}; ONES.forEach((w,i) => NUMW[w] = String(i)); ["twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"].forEach((w,i)=> NUMW[w] = String((i+2)*10));
+function wordTokens(s){
+  return s.toLowerCase().replace(/[’‘`]/g,"'").replace(/[^a-z0-9'\s-]/g," ").replace(/-/g," ")
+    .split(/\s+/).map(w => w.replace(/^'+|'+$/g,"")).filter(Boolean).map(w => NUMW[w] || w);
+}
+function displayTokens(s){ return s.replace(/-/g," ").split(/\s+/).filter(Boolean); }
+function digitTokens(s){
+  s = s.replace(/[.,]00\b/g,"");
+  s = s.replace(/\b0+(\d)(?=:)/g,"$1");
+  return s.replace(/\D/g,"").split("");
+}
+function align(a, b){ // a = target, b = typed
+  const n=a.length, m=b.length, D=[];
+  for(let i=0;i<=n;i++){ D.push(new Array(m+1).fill(0)); D[i][0]=i; }
+  for(let j=0;j<=m;j++) D[0][j]=j;
+  for(let i=1;i<=n;i++) for(let j=1;j<=m;j++)
+    D[i][j] = Math.min(D[i-1][j]+1, D[i][j-1]+1, D[i-1][j-1] + (a[i-1]===b[j-1]?0:1));
+  const ops=[]; let i=n, j=m;
+  while(i>0 || j>0){
+    if(i>0 && j>0 && a[i-1]===b[j-1] && D[i][j]===D[i-1][j-1]){ ops.push({t:"m",i:i-1,j:j-1}); i--; j--; }
+    else if(i>0 && j>0 && D[i][j]===D[i-1][j-1]+1){ ops.push({t:"s",i:i-1,j:j-1}); i--; j--; }
+    else if(i>0 && D[i][j]===D[i-1][j]+1){ ops.push({t:"d",i:i-1}); i--; }
+    else { ops.push({t:"i",j:j-1}); j--; }
+  }
+  return ops.reverse();
+}
+function grade(item, typed){
+  const words = item.mode === "words";
+  const tgt = words ? wordTokens(item.answer) : digitTokens(item.answer);
+  const usr = words ? wordTokens(typed) : digitTokens(typed);
+  const ops = align(tgt, usr);
+  const m = ops.filter(o=>o.t==="m").length, ins = ops.filter(o=>o.t==="i").length;
+  const acc = tgt.length ? Math.max(0, (m - .5*ins) / tgt.length) : 0;
+  return { tgt, usr, ops, acc, matches:m, total:tgt.length };
+}
+
+/* ---------- speech ---------- */
+const synth = window.speechSynthesis;
+let voices = [];
+function loadVoices(){
+  if(!synth) return;
+  voices = synth.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
+  const sel = $("#voice"), saved = store.get("nc_voice", "");
+  sel.innerHTML = voices.length ? "" : '<option value="">Giọng mặc định</option>';
+  voices.forEach(v => { const o = document.createElement("option"); o.value = v.name; o.textContent = v.name.replace(/Microsoft |Google /,"") + " (" + v.lang + ")"; sel.appendChild(o); });
+  const pref = voices.find(v => v.name === saved) || voices.find(v => /en-US/i.test(v.lang) && /Google|Natural|Samantha|Aria|Jenny/i.test(v.name)) || voices.find(v => /en-US/i.test(v.lang)) || voices[0];
+  if(pref) sel.value = pref.name;
+}
+if(synth){ loadVoices(); synth.onvoiceschanged = loadVoices; }
+$("#voice").addEventListener("change", e => store.set("nc_voice", e.target.value));
+$("#rate").value = String(store.get("nc_rate", "1"));
+$("#rate").addEventListener("change", e => store.set("nc_rate", e.target.value));
+
+function speak(text, slow){
+  if(!synth) return;
+  synth.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const v = voices.find(v => v.name === $("#voice").value);
+  if(v){ u.voice = v; u.lang = v.lang; } else u.lang = "en-US";
+  u.rate = slow ? 0.65 : parseFloat($("#rate").value || "1");
+  const btn = $("#playBtn");
+  u.onstart = () => btn && btn.classList.add("on");
+  u.onend = u.onerror = () => btn && btn.classList.remove("on");
+  synth.speak(u);
+}
+
+/* ---------- state ---------- */
+let topic = TOPICS.find(t => t.id === store.get("nc_topic","phone")) || TOPICS[0];
+let S;
+function newRound(){
+  S = { items: buildRound(topic), idx:0, score:0, streak:0, bestStreak:0, accSum:0, done:0, results:[], plays:0, hint:false, checked:false };
+  renderTopics(); renderItem(); renderBoard();
+}
+function renderTopics(){
+  $("#topics").innerHTML = TOPICS.map(t => `<button class="chip" type="button" data-id="${t.id}" aria-pressed="${t.id===topic.id}">${t.name}</button>`).join("");
+}
+$("#topics").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if(!b) return;
+  topic = TOPICS.find(t => t.id === b.dataset.id); store.set("nc_topic", topic.id); newRound();
+});
+
+function renderBoard(bump){
+  $("#sScore").textContent = S.score;
+  $("#sStreak").textContent = S.streak;
+  $("#sAcc").textContent = S.done ? Math.round(S.accSum / S.done * 100) + "%" : "–";
+  $("#sDays").textContent = dayStreak();
+  $("#bar").style.width = (S.done / S.items.length * 100) + "%";
+  if(bump){ const el = $("#sScore"); el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
+}
+
+const PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>';
+
+function renderItem(){
+  const it = S.items[S.idx];
+  S.plays = 0; S.hint = false; S.checked = false;
+  const mono = it.mode === "digits";
+  const ph = { phone:"Ví dụ: 0412 555 789", price:"Ví dụ: $12.50", time:"Ví dụ: 7:45", big:"Ví dụ: 1998 hoặc 2,350" }[topic.id] || "Gõ lại câu bạn nghe được…";
+  $("#stage").innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:16px">
+      ${synth ? "" : '<div class="warnbox">Trình duyệt này không hỗ trợ đọc giọng nói. Hãy mở bằng Chrome, Edge hoặc Safari.</div>'}
+      <div class="player">
+        <button class="play" id="playBtn" type="button" aria-label="Nghe câu">${PLAY_SVG}</button>
+        <div class="pmeta"><strong>Câu ${S.idx+1} / ${S.items.length}</strong><span id="plays">Bấm loa để nghe. 3 lần nghe đầu miễn phí.</span></div>
+        <div class="ctrls">
+          <button class="btn" id="slowBtn" type="button">Nghe chậm</button>
+        </div>
+      </div>
+      <textarea id="ans" class="${mono?"mono":""}" placeholder="${ph}" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      <div id="hintBox"></div>
+      <div class="row">
+        <div class="ctrls">
+          <button class="btn primary" id="checkBtn" type="button">Chấm điểm</button>
+          <button class="btn" id="hintBtn" type="button">Gợi ý (−30)</button>
+        </div>
+        <button class="btn ghost" id="skipBtn" type="button">Bỏ qua (0 điểm)</button>
+      </div>
+      <div id="resBox"></div>
+    </div>`;
+  $("#playBtn").onclick = () => play(false);
+  $("#slowBtn").onclick = () => play(true);
+  $("#checkBtn").onclick = check;
+  $("#hintBtn").onclick = showHint;
+  $("#skipBtn").onclick = () => { $("#ans").value = ""; check(true); };
+  $("#ans").focus({preventScroll:true});
+}
+function play(slow){
+  if(S.checked){ speak(S.items[S.idx].speak, slow); return; }
+  if(!slow) S.plays++;
+  speak(S.items[S.idx].speak, slow);
+  const extra = Math.max(0, S.plays - 3);
+  $("#plays").textContent = slow ? "Đang nghe chậm (không tính lượt)." :
+    `Đã nghe ${S.plays} lần` + (extra ? ` · trừ ${extra*5} điểm` : S.plays < 3 ? ` · còn ${3-S.plays} lần miễn phí` : " · lần sau bị trừ 5 điểm");
+  $("#ans").focus({preventScroll:true});
+}
+function showHint(){
+  if(S.checked || S.hint) return;
+  S.hint = true;
+  const it = S.items[S.idx];
+  const masked = it.mode === "digits"
+    ? it.answer.replace(/\d/g, (d,i) => i===0 ? d : "•")
+    : displayTokens(it.answer).map(w => w.replace(/^([^A-Za-z0-9]*[A-Za-z0-9])(.*)$/, (m,a,b) => a + b.replace(/[A-Za-z0-9]/g,"_"))).join(" ");
+  $("#hintBox").innerHTML = `<div class="hint">${esc(masked)}</div>`;
+  $("#hintBtn").disabled = true;
+  $("#ans").focus({preventScroll:true});
+}
+
+function check(skipped){
+  if(S.checked) return next();
+  const it = S.items[S.idx], typed = $("#ans").value;
+  if(!skipped && !typed.trim()){ $("#ans").focus(); return; }
+  S.checked = true;
+  const g = grade(it, skipped ? "" : typed);
+  const base = Math.round(g.acc * 100);
+  const hintPen = S.hint ? 30 : 0, playPen = Math.max(0, S.plays - 3) * 5;
+  let pts = Math.max(0, base - hintPen - playPen), bonus = 0;
+  const perfect = g.acc === 1 && !S.hint;
+  if(perfect){ S.streak++; S.bestStreak = Math.max(S.bestStreak, S.streak); bonus = 10 + Math.min(S.streak-1, 5) * 5; }
+  else S.streak = 0;
+  pts += bonus;
+  S.score += pts; S.accSum += g.acc; S.done++;
+  S.results.push({ it, typed, acc:g.acc, pts });
+
+  const why = [`${g.matches}/${g.total} ${it.mode==="digits"?"chữ số":"từ"} đúng`];
+  if(hintPen) why.push("gợi ý −30");
+  if(playPen) why.push(`nghe thêm −${playPen}`);
+  if(bonus) why.push(`thưởng chuỗi +${bonus}`);
+  const cls = g.acc === 1 ? "ok" : g.acc >= .7 ? "mid" : "low";
+  const title = skipped ? "Đã bỏ qua" : g.acc === 1 ? (S.streak > 1 ? `Hoàn hảo! Chuỗi ${S.streak}` : "Hoàn hảo!") : g.acc >= .7 ? "Gần đúng rồi" : "Cần nghe kỹ hơn";
+
+  $("#resBox").innerHTML = `
+    <div class="result ${cls}" role="status">
+      <div class="head"><span class="pts">+${pts}</span><strong>${title}</strong><span class="why">${why.join(" · ")}</span></div>
+      ${skipped ? "" : `<div class="diff ${it.mode==="digits"?"mono":""}">${renderDiff(it, g)}</div>`}
+      <div class="answer">Đáp án: <b>${esc(it.answer)}</b></div>
+      ${skipped || g.acc===1 ? "" : '<div class="legend"><span><span class="w m">đúng</span></span><span><span class="w x">sai</span> <span class="w c">sửa</span></span><span><span class="w miss">thiếu</span></span></div>'}
+      <div class="row"><button class="btn primary" id="nextBtn" type="button">${S.idx === S.items.length-1 ? "Xem kết quả" : "Câu tiếp"} →</button><button class="btn ghost" id="again" type="button">Nghe lại câu này</button></div>
+    </div>`;
+  $("#ans").readOnly = true;
+  ["checkBtn","hintBtn","skipBtn"].forEach(id => $("#"+id).disabled = true);
+  $("#nextBtn").onclick = next;
+  $("#again").onclick = () => speak(it.speak, false);
+  $("#nextBtn").focus({preventScroll:true});
+  renderBoard(true);
+}
+function renderDiff(it, g){
+  const words = it.mode === "words";
+  const shown = words ? displayTokens(it.answer) : g.tgt;
+  const typedShown = words ? (s => s.replace(/-/g," ").split(/\s+/).filter(w => wordTokens(w).length))(S.results[S.results.length-1].typed) : g.usr;
+  // map target index to display token (wordTokens may split hyphenated words; displayTokens does the same)
+  const T = i => esc(shown[i] !== undefined ? shown[i] : g.tgt[i]);
+  const U = j => esc(typedShown[j] !== undefined ? typedShown[j] : g.usr[j]);
+  return g.ops.map(o => {
+    if(o.t === "m") return `<span class="w m">${T(o.i)}</span>`;
+    if(o.t === "s") return `<span class="w x">${U(o.j)}</span><span class="w c">${T(o.i)}</span>`;
+    if(o.t === "d") return `<span class="w miss" title="Bạn bỏ sót">${T(o.i)}</span>`;
+    return `<span class="w x" title="Thừa">${U(o.j)}</span>`;
+  }).join(words ? " " : "");
+}
+function next(){
+  if(S.idx < S.items.length - 1){ S.idx++; renderItem(); renderBoard(); }
+  else finish();
+}
+
+/* ---------- round end, history ---------- */
+function letter(acc){ return acc >= .95 ? "S" : acc >= .85 ? "A" : acc >= .7 ? "B" : acc >= .5 ? "C" : "D"; }
+function todayKey(d){ d = d || new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function dayStreak(){
+  const days = new Set(store.get("nc_hist", []).map(h => h.day));
+  let n = 0; const d = new Date();
+  if(!days.has(todayKey(d))) d.setDate(d.getDate()-1);
+  while(days.has(todayKey(d))){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+function finish(){
+  if(synth) synth.cancel();
+  const acc = S.accSum / S.items.length, L = letter(acc);
+  const hist = store.get("nc_hist", []);
+  const prevBest = hist.filter(h => h.topic === topic.id).reduce((m,h) => Math.max(m, h.score), 0);
+  hist.unshift({ topic: topic.id, name: topic.name, score: S.score, acc, grade: L, day: todayKey(), at: Date.now() });
+  store.set("nc_hist", hist.slice(0, 60));
+  renderBoard(); renderLog();
+  const record = S.score > prevBest;
+  const msg = { S:"Xuất sắc. Thử chủ đề khó hơn hoặc tăng tốc độ đọc.", A:"Rất tốt. Vài lỗi nhỏ nữa là đạt S.", B:"Khá ổn. Xem lại các câu sai bên dưới.", C:"Đang tiến bộ. Dùng Nghe chậm cho các câu khó.", D:"Bắt đầu chậm thôi. Chơi lại vòng này để cải thiện." }[L];
+  const misses = S.results.filter(r => r.acc < 1);
+  $("#stage").innerHTML = `
+    <div class="summary">
+      <div class="big">
+        <div class="biggrade">${L}</div>
+        <div><h2>${S.score} điểm · ${Math.round(acc*100)}% chính xác</h2>
+          <p>${record ? (prevBest ? `Kỷ lục mới cho ${topic.name}! Trước đó: ${prevBest}.` : `Kỷ lục đầu tiên cho ${topic.name}.`) : `Kỷ lục ${topic.name}: ${prevBest} điểm.`} Chuỗi dài nhất: ${S.bestStreak}.</p></div>
+      </div>
+      <p>${msg}</p>
+      ${misses.length ? `<div class="misses">${misses.map(r => `<div><b>${esc(r.it.answer)}</b><span>Bạn gõ: ${esc(r.typed || "(bỏ qua)")} · ${Math.round(r.acc*100)}%</span></div>`).join("")}</div>` : '<p>Không sai câu nào.</p>'}
+      <div class="ctrls"><button class="btn primary" id="replay" type="button">Chơi vòng mới</button></div>
+    </div>`;
+  $("#bar").style.width = "100%";
+  $("#replay").onclick = newRound;
+  $("#replay").focus({preventScroll:true});
+}
+function renderLog(){
+  const hist = store.get("nc_hist", []);
+  const total = hist.reduce((s,h) => s + h.score, 0);
+  $("#best").textContent = hist.length ? `Tổng điểm tích lũy: ${total.toLocaleString("vi-VN")} · ${hist.length} vòng` : "Chưa có vòng nào. Hoàn thành 10 câu để lưu điểm ở đây.";
+  $("#log").innerHTML = hist.slice(0, 8).map(h => {
+    const d = new Date(h.at);
+    return `<li><span class="grade">${h.grade}</span><span class="t">${esc(h.name)}<small>${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})} · ${Math.round(h.acc*100)}%</small></span><span class="s">${h.score}</span></li>`;
+  }).join("");
+}
+
+/* ---------- keyboard ---------- */
+let ctrlAlone = false;
+document.addEventListener("keydown", e => {
+  if(e.key === "Control"){ ctrlAlone = true; return; }
+  ctrlAlone = false;
+  if(e.key === "Enter" && !e.shiftKey){
+    if(document.activeElement && document.activeElement.tagName === "BUTTON" && document.activeElement.id !== "nextBtn") return;
+    if(!$("#ans")) return;
+    e.preventDefault(); check(false);
+  }
+});
+document.addEventListener("keyup", e => {
+  if(e.key === "Control" && ctrlAlone && $("#playBtn")){ play(false); }
+  ctrlAlone = false;
+});
+
+renderLog();
+newRound();
+})();
+</script>
+</body>
+</html>
