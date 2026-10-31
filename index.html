@@ -98,6 +98,20 @@ kbd{font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);border
 .log .t small{display:block;color:var(--muted);font-size:12px}
 .log .s{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .empty{color:var(--muted);font-size:14px;margin:0}
+.lessons-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+.lessons-head h2{font-family:var(--f-display);font-size:24px;margin:0}
+.lessons-head span{color:var(--muted);font-size:14px}
+.lessons{display:flex;flex-direction:column;gap:10px}
+.lesson{font:inherit;color:var(--ink);text-align:left;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer}
+.lesson:hover{border-color:var(--accent)}
+.lnum{font-family:var(--f-mono);font-weight:700;color:var(--accent);width:28px;text-align:center}
+.lbody{display:flex;flex-direction:column;gap:2px;min-width:0}
+.lbody strong{font-family:var(--f-display);font-size:18px}
+.lbody small,.lbest small{color:var(--muted);font-size:13px}
+.lbest{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:64px}
+.crumb{color:var(--muted);font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.back{font:inherit;font-size:13px;color:var(--accent);background:none;border:0;padding:0;cursor:pointer;text-decoration:underline}
+.btn.back{font-size:15px;text-decoration:none;color:var(--ink);border:1px solid var(--line);padding:10px 16px}
 .settings{display:flex;flex-direction:column;gap:8px;font-size:14px}
 .settings label{display:flex;flex-direction:column;gap:4px;color:var(--muted)}
 select{font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
@@ -120,7 +134,7 @@ select{font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px soli
   <header>
     <div>
       <h1>Nghe <span>&amp;</span> Chép</h1>
-      <p class="tag">Nghe tiếng Anh, gõ lại, nhận điểm ngay. Mỗi vòng 10 câu.</p>
+      <p class="tag">Chọn topic, chọn bài, nghe và gõ lại. Mỗi bài 10 câu, chấm điểm từng câu.</p>
     </div>
     <div class="keys"><kbd>Ctrl</kbd> nghe lại · <kbd>Enter</kbd> chấm / câu tiếp</div>
   </header>
@@ -168,6 +182,7 @@ select{font:inherit;font-size:14px;padding:8px;border-radius:8px;border:1px soli
   </div>
 </div>
 
+<script src="lessons.js"></script>
 <script>
 (function(){
 "use strict";
@@ -197,9 +212,9 @@ function yearWords(y){
   return words(a) + " " + (b === 0 ? "hundred" : b < 10 ? "oh " + ONES[b] : words(b));
 }
 
-/* ---------- topics ---------- */
-function phoneItem(){
-  const fmt = pick([[4,3,3],[3,3,4],[2,4,4]]);
+/* ---------- generators (used by lessons with "gen") ---------- */
+function phoneItem(o){
+  const fmt = pick(o.formats || [[4,3,3],[3,3,4],[2,4,4]]);
   const groups = fmt.map((len,gi) => { let s=""; for(let i=0;i<len;i++) s += (gi===0 && i===0) ? "0" : rint(0,9); return s; });
   const spoken = groups.map(g => {
     const out = []; const d = g.split("");
@@ -209,65 +224,57 @@ function phoneItem(){
     }
     return out.join(" ");
   }).join(", ");
-  const intro = pick(["", "My number is ", "You can reach me on ", "Call me on ", "It's "]);
-  return { answer: groups.join(" "), speak: intro + spoken + ".", mode: "digits", label: "Số điện thoại" };
+  const intro = pick(o.intros || ["", "My number is ", "You can reach me on ", "Call me on ", "It's "]);
+  return { answer: groups.join(" "), speak: intro + spoken + ".", mode: "digits" };
 }
-function priceItem(){
+function priceItem(o){
   const cur = pick([["$","dollar","dollars","cent","cents"],["£","pound","pounds","penny","pence"],["€","euro","euros","cent","cents"]]);
-  const whole = pick([rint(1,20), rint(10,99), rint(100,999), rint(1000,4999)]);
-  const cents = pick([0, 0, 99, 50, 25, rint(1,98)]);
+  const rg = pick(o.ranges || [[1,20],[10,99],[100,999],[1000,4999]]);
+  const whole = rint(rg[0], rg[1]);
+  let cents = pick(o.cents || [0, 0, 99, 50, 25, "rand"]); if(cents === "rand") cents = rint(1,98);
   let spoken = words(whole) + " " + (whole===1 ? cur[1] : cur[2]);
   if(cents) spoken = Math.random()<.5 ? spoken + " and " + words(cents) + " " + (cents===1 ? cur[3] : cur[4])
                                        : words(whole) + " " + words(cents);
   const ans = cur[0] + whole.toLocaleString("en-US") + (cents ? "." + String(cents).padStart(2,"0") : "");
-  const intro = pick(["That's ", "It costs ", "The total is ", "", "It comes to "]);
-  return { answer: ans, speak: intro + spoken + ".", mode: "digits", label: "Giá tiền" };
+  const intro = pick(o.intros || ["That's ", "It costs ", "The total is ", "", "It comes to "]);
+  return { answer: ans, speak: intro + spoken + ".", mode: "digits" };
 }
-function timeItem(){
-  const h = rint(1,12);
-  const m = pick([0,5,10,15,20,25,30,35,40,45,50,55, rint(1,59)]);
-  const nextH = h === 12 ? 1 : h + 1;
-  let spoken;
-  const r = Math.random();
-  if(m === 0) spoken = words(h) + " o'clock";
-  else if(r < .5 && m === 15) spoken = "a quarter past " + words(h);
-  else if(r < .5 && m === 30) spoken = "half past " + words(h);
-  else if(r < .5 && m === 45) spoken = "a quarter to " + words(nextH);
-  else if(r < .5 && m % 5 === 0 && m < 30) spoken = words(m) + " past " + words(h);
-  else if(r < .5 && m % 5 === 0 && m > 30) spoken = words(60-m) + " to " + words(nextH);
-  else spoken = words(h) + " " + (m < 10 ? "oh " + ONES[m] : words(m));
-  const intro = pick(["The train leaves at ", "Let's meet at ", "The meeting starts at ", "It's ", "The shop opens at "]);
-  return { answer: h + ":" + String(m).padStart(2,"0"), speak: intro + spoken + ".", mode: "digits", label: "Giờ giấc" };
+function timeItem(o){
+  const h = rint(1,12), nextH = h === 12 ? 1 : h + 1;
+  let m, spoken;
+  if(o.style === "phrases"){
+    m = pick([0,5,10,15,20,25,30,35,40,45,50,55]);
+    if(m === 0) spoken = words(h) + " o'clock";
+    else if(m === 15) spoken = "a quarter past " + words(h);
+    else if(m === 30) spoken = "half past " + words(h);
+    else if(m === 45) spoken = "a quarter to " + words(nextH);
+    else if(m < 30) spoken = words(m) + " past " + words(h);
+    else spoken = words(60-m) + " to " + words(nextH);
+  } else {
+    m = rint(0,59);
+    spoken = m === 0 ? words(h) + " o'clock" : words(h) + " " + (m < 10 ? "oh " + ONES[m] : words(m));
+  }
+  const intro = pick(o.intros || ["The train leaves at ", "Let's meet at ", "The meeting starts at ", "It's ", "The shop opens at "]);
+  return { answer: h + ":" + String(m).padStart(2,"0"), speak: intro + spoken + ".", mode: "digits" };
 }
-function bigItem(){
-  if(Math.random() < .45){
-    const y = rint(1900, 2030);
-    return { answer: String(y), speak: pick(["She was born in ","It happened in ","The company started in ","They moved here in "]) + yearWords(y) + ".", mode: "digits", label: "Năm & số lớn" };
+function numberItem(o){
+  if(o.kind === "year"){
+    const y = rint(o.min || 1900, o.max || 2030);
+    return { answer: String(y), speak: pick(o.intros || ["She was born in ","It happened in ","The company started in ","They moved here in "]) + yearWords(y) + ".", mode: "digits" };
   }
   const n = pick([rint(13,99), rint(100,999), rint(1000,9999), rint(10000,99999), rint(100000,999999)]);
-  return { answer: n.toLocaleString("en-US"), speak: pick(["There are ","We sold ","About ","The population is ","They recorded "]) + words(n) + ".", mode: "digits", label: "Năm & số lớn" };
+  return { answer: n.toLocaleString("en-US"), speak: pick(o.intros || ["There are ","We sold ","About ","The population is ","They recorded "]) + words(n) + ".", mode: "digits" };
 }
+const GENS = { phone: phoneItem, price: priceItem, time: timeItem, number: numberItem };
 
-const SENT = {
-  daily: ["I usually get up at seven and have breakfast with my family.","Could you turn the music down a little, please?","We're going to the supermarket after work.","She has been learning English for three years.","My brother doesn't like coffee, but he drinks a lot of tea.","What time does the film start tonight?","I left my keys on the kitchen table.","It's been raining all morning, so take an umbrella.","Let's order a pizza and watch something at home.","He walks his dog in the park every evening.","I can't find my phone anywhere.","Do you want to come to my birthday party on Saturday?","The weather is much warmer than it was yesterday.","I need to buy some milk, eggs, and bread.","We spent the whole weekend cleaning the house.","My sister is a nurse at the city hospital.","Have you ever tried Vietnamese food?","I'm sorry I'm late, the traffic was terrible.","Could you help me carry these bags upstairs?","They have lived in this neighbourhood since 2015."],
-  travel: ["Excuse me, how do I get to the train station?","Go straight ahead and turn left at the traffic lights.","I'd like to book a room for two nights, please.","Is breakfast included in the price?","Our flight has been delayed by two hours.","Can I have a window seat, please?","The museum is closed on Mondays.","How much is a return ticket to London?","Please keep your passport with you at all times.","The bus stop is just across the road from the bank.","We need to check out before eleven o'clock.","Could you recommend a good local restaurant?","I'm afraid I've lost my luggage.","Take the second exit at the roundabout.","Is there a pharmacy near here?","The hotel is about ten minutes on foot from the beach.","Boarding will begin at gate number twelve.","Do you accept credit cards?","Could you call a taxi for me, please?","We're planning a road trip along the coast next summer."],
-  work: ["Can we move the meeting to Thursday afternoon?","I'll send you the report by the end of the day.","Please let me know if you have any questions.","Our team is working on a new marketing campaign.","The deadline for this project is next Friday.","Could you share your screen so everyone can see?","I'm calling to follow up on yesterday's email.","We need to reduce costs without affecting quality.","She was promoted to sales manager last month.","Let's schedule a quick call to discuss the details.","The client has asked for a few changes to the design.","I'm afraid I won't be able to attend the conference.","Please sign the contract and send it back to us.","Our office is on the fifth floor of the building.","Sales have increased by twenty percent this year.","Could you introduce yourself to the rest of the team?","I think we should look at the problem from a different angle.","The printer on this floor isn't working again.","We're hiring two new developers this quarter.","Thank you all for your hard work on this launch."]
-};
-function sentItem(key, label){ return () => { const s = pick(SENT[key]); return { answer: s, speak: s, mode: "words", label }; }; }
-
-const TOPICS = [
-  { id:"phone", name:"Số điện thoại", gen: phoneItem },
-  { id:"price", name:"Giá tiền", gen: priceItem },
-  { id:"time", name:"Giờ giấc", gen: timeItem },
-  { id:"big", name:"Năm & số lớn", gen: bigItem },
-  { id:"daily", name:"Đời sống", sentences:"daily" },
-  { id:"travel", name:"Du lịch", sentences:"travel" },
-  { id:"work", name:"Công sở", sentences:"work" },
-];
-function buildRound(t){
-  if(t.sentences) return shuffle(SENT[t.sentences]).slice(0,10).map(s => ({ answer:s, speak:s, mode:"words", label:t.name }));
-  const out = [], seen = new Set();
-  while(out.length < 10){ const it = t.gen(); if(!seen.has(it.answer)){ seen.add(it.answer); out.push(it); } }
+const TOPICS = window.TOPICS || [];
+function buildRound(lesson){
+  if(lesson.items) return lesson.items.slice(0,10).map(x => typeof x === "string"
+    ? { answer:x, speak:x, mode:"words" }
+    : { answer:x.answer, speak:x.speak || x.answer, mode:x.mode || "words" });
+  const gen = GENS[lesson.gen], out = [], seen = new Set();
+  let guard = 0;
+  while(out.length < 10 && guard++ < 200){ const it = gen(lesson.opts || {}); if(!seen.has(it.answer)){ seen.add(it.answer); out.push(it); } }
   return out;
 }
 
@@ -340,19 +347,47 @@ function speak(text, slow){
 
 /* ---------- state ---------- */
 let topic = TOPICS.find(t => t.id === store.get("nc_topic","phone")) || TOPICS[0];
-let S;
-function newRound(){
-  S = { items: buildRound(topic), idx:0, score:0, streak:0, bestStreak:0, accSum:0, done:0, results:[], plays:0, hint:false, checked:false };
+let lesson = null, S = null;
+const lessonKey = (t, l) => t.id + "/" + l.id;
+function bestFor(t, l){
+  return store.get("nc_hist", []).filter(h => h.lesson === lessonKey(t,l))
+    .reduce((b,h) => !b || h.score > b.score ? h : b, null);
+}
+function showLessons(){
+  lesson = null; S = null;
+  if(synth) synth.cancel();
+  renderTopics();
+  $("#bar").style.width = "0%";
+  $("#stage").innerHTML = `
+    <div class="lessons-head"><h2>${esc(topic.name)}</h2><span>${topic.lessons.length} bài · mỗi bài 10 câu</span></div>
+    <div class="lessons">${topic.lessons.map((l,i) => {
+      const b = bestFor(topic, l);
+      return `<button class="lesson" type="button" data-id="${esc(l.id)}">
+        <span class="lnum">${i+1}</span>
+        <span class="lbody"><strong>${esc(l.name)}</strong><small>${esc(l.desc || "")}</small></span>
+        <span class="lbest">${b ? `<span class="grade">${b.grade}</span><small>${b.score} điểm</small>` : '<small>Chưa chơi</small>'}</span>
+      </button>`; }).join("")}</div>`;
+  resetBoard();
+}
+function startLesson(l){
+  lesson = l;
+  S = { items: buildRound(l), idx:0, score:0, streak:0, bestStreak:0, accSum:0, done:0, results:[], plays:0, hint:false, checked:false };
   renderTopics(); renderItem(); renderBoard();
 }
 function renderTopics(){
-  $("#topics").innerHTML = TOPICS.map(t => `<button class="chip" type="button" data-id="${t.id}" aria-pressed="${t.id===topic.id}">${t.name}</button>`).join("");
+  $("#topics").innerHTML = TOPICS.map(t => `<button class="chip" type="button" data-id="${t.id}" aria-pressed="${t.id===topic.id}">${esc(t.name)}</button>`).join("");
 }
 $("#topics").addEventListener("click", e => {
   const b = e.target.closest(".chip"); if(!b) return;
-  topic = TOPICS.find(t => t.id === b.dataset.id); store.set("nc_topic", topic.id); newRound();
+  topic = TOPICS.find(t => t.id === b.dataset.id); store.set("nc_topic", topic.id); showLessons();
 });
-
+$("#stage").addEventListener("click", e => {
+  const b = e.target.closest(".lesson"); if(b) startLesson(topic.lessons.find(l => l.id === b.dataset.id));
+  if(e.target.closest(".back")) showLessons();
+});
+function resetBoard(){
+  $("#sScore").textContent = 0; $("#sStreak").textContent = 0; $("#sAcc").textContent = "–"; $("#sDays").textContent = dayStreak();
+}
 function renderBoard(bump){
   $("#sScore").textContent = S.score;
   $("#sStreak").textContent = S.streak;
@@ -361,20 +396,19 @@ function renderBoard(bump){
   $("#bar").style.width = (S.done / S.items.length * 100) + "%";
   if(bump){ const el = $("#sScore"); el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
 }
-
 const PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>';
 
 function renderItem(){
   const it = S.items[S.idx];
   S.plays = 0; S.hint = false; S.checked = false;
   const mono = it.mode === "digits";
-  const ph = { phone:"Ví dụ: 0412 555 789", price:"Ví dụ: $12.50", time:"Ví dụ: 7:45", big:"Ví dụ: 1998 hoặc 2,350" }[topic.id] || "Gõ lại câu bạn nghe được…";
+  const ph = mono ? ({ phone:"Ví dụ: 0412 555 789", price:"Ví dụ: $12.50", time:"Ví dụ: 7:45" }[lesson.gen] || "Gõ các con số bạn nghe được…") : "Gõ lại câu bạn nghe được…";
   $("#stage").innerHTML = `
     <div style="display:flex;flex-direction:column;gap:16px">
       ${synth ? "" : '<div class="warnbox">Trình duyệt này không hỗ trợ đọc giọng nói. Hãy mở bằng Chrome, Edge hoặc Safari.</div>'}
       <div class="player">
         <button class="play" id="playBtn" type="button" aria-label="Nghe câu">${PLAY_SVG}</button>
-        <div class="pmeta"><strong>Câu ${S.idx+1} / ${S.items.length}</strong><span id="plays">Mỗi câu được nghe miễn phí 3 lần (bấm loa hoặc phím Ctrl).</span></div>
+        <div class="pmeta"><span class="crumb"><button class="back" type="button">← Bài khác</button> ${esc(topic.name)} · ${esc(lesson.name)}</span><strong>Câu ${S.idx+1} / ${S.items.length}</strong><span id="plays">Mỗi câu được nghe miễn phí 3 lần (bấm loa hoặc phím Ctrl).</span></div>
         <div class="ctrls">
           <button class="btn" id="slowBtn" type="button">Nghe chậm</button>
         </div>
@@ -490,8 +524,9 @@ function finish(){
   if(synth) synth.cancel();
   const acc = S.accSum / S.items.length, L = letter(acc);
   const hist = store.get("nc_hist", []);
-  const prevBest = hist.filter(h => h.topic === topic.id).reduce((m,h) => Math.max(m, h.score), 0);
-  hist.unshift({ topic: topic.id, name: topic.name, score: S.score, acc, grade: L, day: todayKey(), at: Date.now() });
+  const key = lessonKey(topic, lesson);
+  const prevBest = hist.filter(h => h.lesson === key).reduce((m,h) => Math.max(m, h.score), 0);
+  hist.unshift({ lesson: key, topic: topic.name, name: lesson.name, score: S.score, acc, grade: L, day: todayKey(), at: Date.now() });
   store.set("nc_hist", hist.slice(0, 60));
   renderBoard(); renderLog();
   const record = S.score > prevBest;
@@ -499,17 +534,18 @@ function finish(){
   const misses = S.results.filter(r => r.acc < 1);
   $("#stage").innerHTML = `
     <div class="summary">
+      <span class="crumb">${esc(topic.name)} · ${esc(lesson.name)}</span>
       <div class="big">
         <div class="biggrade">${L}</div>
         <div><h2>${S.score} điểm · ${Math.round(acc*100)}% chính xác</h2>
-          <p>${record ? (prevBest ? `Kỷ lục mới cho ${topic.name}! Trước đó: ${prevBest}.` : `Kỷ lục đầu tiên cho ${topic.name}.`) : `Kỷ lục ${topic.name}: ${prevBest} điểm.`} Chuỗi dài nhất: ${S.bestStreak}.</p></div>
+          <p>${record ? (prevBest ? `Kỷ lục mới cho bài này! Trước đó: ${prevBest}.` : `Kỷ lục đầu tiên cho bài này.`) : `Kỷ lục của bài: ${prevBest} điểm.`} Chuỗi dài nhất: ${S.bestStreak}.</p></div>
       </div>
       <p>${msg}</p>
       ${misses.length ? `<div class="misses">${misses.map(r => `<div><b>${esc(r.it.answer)}</b><span>Bạn gõ: ${esc(r.typed || "(bỏ qua)")} · ${Math.round(r.acc*100)}%</span></div>`).join("")}</div>` : '<p>Không sai câu nào.</p>'}
-      <div class="ctrls"><button class="btn primary" id="replay" type="button">Chơi vòng mới</button></div>
+      <div class="ctrls"><button class="btn primary" id="replay" type="button">Chơi lại bài này</button><button class="btn back" type="button">Chọn bài khác</button></div>
     </div>`;
   $("#bar").style.width = "100%";
-  $("#replay").onclick = newRound;
+  $("#replay").onclick = () => startLesson(lesson);
   $("#replay").focus({preventScroll:true});
 }
 function renderLog(){
@@ -518,7 +554,7 @@ function renderLog(){
   $("#best").textContent = hist.length ? `Tổng điểm tích lũy: ${total.toLocaleString("vi-VN")} · ${hist.length} vòng` : "Chưa có vòng nào. Hoàn thành 10 câu để lưu điểm ở đây.";
   $("#log").innerHTML = hist.slice(0, 8).map(h => {
     const d = new Date(h.at);
-    return `<li><span class="grade">${h.grade}</span><span class="t">${esc(h.name)}<small>${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})} · ${Math.round(h.acc*100)}%</small></span><span class="s">${h.score}</span></li>`;
+    return `<li><span class="grade">${h.grade}</span><span class="t">${esc(h.name)}<small>${esc(h.topic || "")} · ${d.toLocaleDateString("vi-VN")} ${d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"})} · ${Math.round(h.acc*100)}%</small></span><span class="s">${h.score}</span></li>`;
   }).join("");
 }
 
@@ -539,7 +575,7 @@ document.addEventListener("keyup", e => {
 });
 
 renderLog();
-newRound();
+showLessons();
 })();
 </script>
 </body>
